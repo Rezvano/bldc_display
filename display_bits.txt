@@ -1,0 +1,70 @@
+data 0------------------------------
+1 - ---
+2 - BLUETOOTH
+3 - LED
+4 - S
+5 - D
+6 - ECO
+7 - mph
+8 - kmh
+
+data 1------------------------------
+1 - batt 1 (red)
+2 - check engine
+3 - overheat
+4 - batt 5
+5 - batt 4
+6 - batt 3
+7 - batt 2
+8 - batt 1 (white)
+
+data 2------------------------------
+1 - ---
+2 - segment 2 (red) - G
+3 - segment 2 (red) - F
+4 - segment 2 (red) - E
+5 - segment 2 (red) - D
+6 - segment 2 (red) - C
+7 - segment 2 (red) - B
+8 - segment 2 (red) - A
+
+data 3------------------------------
+1 - ---
+2 - segment 2 (white) - G
+3 - segment 2 (white) - F
+4 - segment 2 (white) - E
+5 - segment 2 (white) - D
+6 - segment 2 (white) - C
+7 - segment 2 (white) - B
+8 - segment 2 (white) - A
+
+data 4------------------------------
+1 - ---
+2 - segment 1 (red) - G
+3 - segment 1 (red) - F
+4 - segment 1 (red) - E
+5 - segment 1 (red) - D
+6 - segment 1 (red) - C
+7 - segment 1 (red) - B
+8 - segment 1 (red) - A
+
+data 5------------------------------
+1 - ---
+2 - segment 1 (white) - G
+3 - segment 1 (white) - F
+4 - segment 1 (white) - E
+5 - segment 1 (white) - D
+6 - segment 1 (white) - C
+7 - segment 1 (white) - B
+8 - segment 1 (white) - A
+
+
+-----A-----
+|         |
+F         B
+|         |
+-----G-----
+|         |
+E         C
+|         |
+-----D-----
