@@ -1,6 +1,15 @@
 #include "mm32_device.h"
+#include <string.h>
+
+#include "stdlib.h"
 
 #define SYSCLOCK (72000000)
+
+#define IN_START (0x55)
+#define IN_STOP (0xAA)
+
+#define OUT_START (0x55)
+#define OUT_STOP (0xAA)
 
 uint32_t millis = 0;
 
@@ -93,123 +102,243 @@ void SmgDisplay(uint8_t *data, uint8_t size, uint8_t br) // Write display regist
 	I2CStop();
 }
 
-enum
-{
-	NUM0 = 0xFC,
-	NUM1 = 0x60,
-	NUM2 = 0xDA,
-	NUM3 = 0xF2,
-	NUM4 = 0x66,
-	NUM5 = 0xB6,
-	NUM6 = 0xBe,
-	NUM7 = 0xE0,
-	NUM8 = 0xFE,
-	NUM9 = 0xF6,
-
-	PROGGRESS0 = 0,
-	PROGGRESS1 = 0x80,
-	PROGGRESS2 = 0xC0,
-	PROGGRESS3 = 0xE0,
-	PROGGRESS4 = 0xF0,
-	PROGGRESS5 = 0xF8,
-	PROGGRESS6 = 0xFC,
-} seven_seg_char_t;
-
 const uint8_t num_to_seven_seg[10] = {
-	NUM0,
-	NUM1,
-	NUM2,
-	NUM3,
-	NUM4,
-	NUM5,
-	NUM6,
-	NUM7,
-	NUM8,
-	NUM9,
+	0xFC,
+	0x60,
+	0xDA,
+	0xF2,
+	0x66,
+	0xB6,
+	0xBe,
+	0xE0,
+	0xFE,
+	0xF6,
 };
 
-const uint8_t num_to_proggress[7] = {
-	PROGGRESS0,
-	PROGGRESS1,
-	PROGGRESS2,
-	PROGGRESS3,
-	PROGGRESS4,
-	PROGGRESS5,
-	PROGGRESS6,
-};
-
-struct
+typedef struct __attribute__((__packed__))
 {
-	uint8_t data[6];
-	uint8_t br;
+	uint8_t start;
 
-	enum
-	{
-		MODE_SPEED,
-		MODE_CURRENT,
-	} mode;
-
-	uint8_t low_red;
-	uint8_t high_red;
-
-	uint8_t num;
-
-	uint8_t ECO;
-	uint8_t D;
-	uint8_t S;
-
+	uint8_t mode;
 	uint8_t LED;
-	uint8_t BLE;
 
-	uint8_t overheat;
-	uint8_t check_engine;
+	uint16_t current;
+	uint16_t set_current;
 
-	uint8_t batt_level;
-	uint8_t batt_red_point;
-} display;
+	uint8_t freq;
+	uint8_t batt_voltage;
 
-void display_number()
+	uint8_t err;
+
+	uint8_t stop;
+} in_data_t;
+
+typedef struct __attribute__((__packed__))
 {
-	uint8_t nn = display.num % 10;
-	uint8_t nN = display.num / 10;
+	uint8_t start;
+	uint16_t accel;
+	uint16_t brake;
+	uint8_t stop;
+} out_data_t;
 
-	uint8_t *data_low_N = &display.data[3];
-	uint8_t *data_high_N = &display.data[5];
+out_data_t out_data_current;
+out_data_t out_data;
+int out_data_sended_size = 0;
 
-	uint8_t *seven_seg_table = (uint8_t *)num_to_seven_seg;
+in_data_t in_data_current;
+in_data_t in_data;
+int in_data_readed = 0;
 
-	if (display.mode == MODE_CURRENT)
-		seven_seg_table = (uint8_t *)num_to_proggress;
+int no_data_timeout = 0;
 
-	if (display.low_red)
-		data_low_N = &display.data[2];
-	if (display.high_red)
-		data_high_N = &display.data[4];
+void tx_task()
+{
+	static uint32_t delay_ms = 0;
+	if (delay_ms < millis)
+	{
+		delay_ms = millis + 50;
+		memcpy(&out_data, &out_data_current, sizeof(out_data_t));
 
-	*data_low_N = seven_seg_table[nn];
-	if (nN > 0)
-		*data_high_N = seven_seg_table[nN];
-	else
-		*data_high_N = 0;
+		out_data.start = OUT_START;
+		out_data.stop = OUT_STOP;
+
+		out_data_sended_size = 0;
+	}
+
+	if (out_data_sended_size < sizeof(out_data_t) && (UART2->CSR & UART_CSR_TXC) > 0)
+	{
+		UART2->TDR = *(((uint8_t *)&out_data) + (out_data_sended_size++));
+	}
+}
+
+void rx_task()
+{
+	uint8_t *read_data = (void *)&in_data_current;
+
+	if (UART2->CSR & UART_CSR_RXAVL)
+	{
+		uint8_t byte = UART2->RDR;
+		if (byte == IN_START)
+			in_data_readed = 0;
+
+		read_data[in_data_readed++] = byte;
+
+		if (in_data_readed == sizeof(in_data_t))
+		{
+			if (byte == IN_STOP)
+			{
+				memcpy(&in_data, &in_data_current, sizeof(in_data_t));
+				no_data_timeout = millis + 2000;
+			}
+			in_data_readed = 0;
+		}
+	}
+}
+
+void display_task()
+{
+	static uint32_t delay_ms = 0;
+
+	static uint8_t data[6];
+	if (delay_ms < millis)
+	{
+		delay_ms = millis + 200;
+		if (no_data_timeout > millis)
+		{
+			if (in_data.start == IN_START && in_data.stop == IN_STOP)
+			{
+				for (int i = 0; i < 6; i++)
+					data[i] = 0;
+				// speed
+				data[3] = num_to_seven_seg[in_data.freq % 10];
+				data[5] = num_to_seven_seg[(in_data.freq / 10) % 10];
+
+				// errors
+				data[1] |= in_data.err;
+
+				// batt
+				if (in_data.batt_voltage > 30)
+					data[1] |= 1 << 7;
+				if (in_data.batt_voltage > 32)
+					data[1] |= 1 << 6;
+				if (in_data.batt_voltage > 34)
+					data[1] |= 1 << 5;
+				if (in_data.batt_voltage > 36)
+					data[1] |= 1 << 4;
+				if (in_data.batt_voltage > 38)
+					data[1] |= 1 << 3;
+
+				// mode & info
+				data[0] |= 1 << (3 + in_data.mode);
+				data[0] |= in_data.LED << 2;
+				data[0] |= 1 << 7;
+
+				SmgDisplay(data, 6, 0xf);
+			}
+		}
+		else
+		{
+			for (int i = 0; i < 6; i++)
+				data[i] = 0;
+			SmgDisplay(data, 6, 0xf);
+		}
+	}
+}
+
+int uint16_t_qsort(const void *a, const void *b)
+{
+	return *(uint16_t *)a - *(uint16_t *)b;
+}
+
+void adc_task()
+{
+	static uint32_t delay_ms = 0;
+	static uint16_t accel_median_table[5];
+	static uint16_t brake_median_table[5];
+
+	static uint8_t median_id = 0;
+
+	if (delay_ms < millis)
+	{
+		delay_ms = millis + 5;
+
+		if ((ADC1->SR & ADC_SR_BUSY) == 0)
+		{
+			brake_median_table[median_id] = ADC1->CH0DR & 0xFFFF;
+			accel_median_table[median_id++] = ADC1->CH4DR & 0xFFFF;
+
+			if (median_id > (sizeof(accel_median_table) / sizeof(accel_median_table[0])))
+			{
+				median_id = 0;
+				qsort(brake_median_table, (sizeof(accel_median_table) / sizeof(accel_median_table[0])),
+					  sizeof(uint16_t), uint16_t_qsort);
+				qsort(accel_median_table, (sizeof(accel_median_table) / sizeof(accel_median_table[0])),
+					  sizeof(uint16_t), uint16_t_qsort);
+
+				static int accel;
+				static int brake;
+
+				accel += (100 * accel_median_table[(sizeof(accel_median_table) / sizeof(accel_median_table[0])) / 2] - accel) / 2;
+				brake += (100 * brake_median_table[(sizeof(brake_median_table) / sizeof(brake_median_table[0])) / 2] - brake) / 2;
+				out_data_current.accel = accel / 100;
+				out_data_current.brake = brake / 100;
+			}
+			ADC1->CR |= ADC_CR_ADST;
+		}
+	}
 }
 
 int main()
 {
+
 	SysTick->LOAD = (SYSCLOCK / 1000 - 1) & SysTick_LOAD_RELOAD_Msk;
 	SysTick->VAL &= ~SysTick_VAL_CURRENT_Msk;
 
 	SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_ENABLE_Msk | SysTick_CTRL_TICKINT_Msk;
 
-	RCC->AHBENR |= RCC_AHBENR_GPIOB;
+	RCC->AHBENR |= RCC_AHBENR_GPIOB | RCC_AHBENR_GPIOA;
+
+	RCC->APB2ENR |= RCC_APB2RSTR_ADC1;
+	RCC->APB1ENR |= RCC_APB1ENR_UART2;
 
 	GPIOB->CRH = (GPIO_CNF_MODE_50MHZ_OUT_PP << GPIO_CRH_CNF_MODE_13_Pos) |
 				 (GPIO_CNF_MODE_50MHZ_OUT_PP << GPIO_CRH_CNF_MODE_14_Pos);
+	GPIOB->CRL = (GPIO_CNF_MODE_AF_PP << GPIO_CRL_CNF_MODE_7_Pos);
+	GPIOB->AFRL = (GPIO_AF_MODE4 << GPIO_AFRL_AFR7_Pos);
 
-	display.br = 0xF;
+	GPIOA->CRL = (GPIO_CNF_MODE_AIN << GPIO_CRL_CNF_MODE_0_Pos) |
+				 (GPIO_CNF_MODE_AIN << GPIO_CRL_CNF_MODE_4_Pos) |
+				 (GPIO_CNF_MODE_INPUPD << GPIO_CRL_CNF_MODE_6_Pos) |
+				 (GPIO_CNF_MODE_50MHZ_OUT_PP << GPIO_CRL_CNF_MODE_5_Pos);
 
-	while (1)
+	GPIOA->AFRL = (GPIO_AF_MODE3 << GPIO_AFRL_AFR6_Pos);
+
+	ADC1->CFGR = ADC_CFGR_ADEN;
+	ADC1->CR = 0x01 << ADC_CR_MODE_Pos;
+	ADC1->CHSR = ADC_CHSR_CH0 | ADC_CHSR_CH4;
+
+	UART2->GCR = UART_GCR_TX | UART_GCR_RX | UART_GCR_UART;
+	UART2->CCR = UART_CCR_CHAR_8b;
+	UART2->BRR = 19;
+
+	// UART2->IER |= UART_IER_RX;
+
+	// NVIC_SetPriority(UART2_IRQn, 1);
+	// NVIC_EnableIRQ(UART2_IRQn);
+
+	out_data_current.start = OUT_START;
+	out_data_current.stop = OUT_STOP;
+
+	for (;;)
 	{
-		display_number();
-		SmgDisplay(display.data, 6, display.br); // Write register and open display
+		display_task();
+		adc_task();
+		tx_task();
+		rx_task();
+
+		if (in_data.LED)
+			GPIOA->ODR |= 1 << 5;
+		else
+			GPIOA->ODR &= ~(1 << 5);
 	}
 }

@@ -1,0 +1,8 @@
+PB13 -> display clk
+PB14 -> display io
+
+PA4 -> analog read (green)
+PA0 -> analog read (white)
+
+PB7 -> UART2_TX
+PA6 -> UART2_RX

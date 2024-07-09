@@ -362,12 +362,12 @@ ARM Macro Assembler    Page 6
               00000000 
               00000000 
 Command Line: --debug --xref --diag_suppress=9931 --cpu=Cortex-M0 --apcs=interw
-ork --depend=.\objects\start.d -o.\objects\start.o -I.\RTE\_Target_1 -IC:\Keil_
-v5\ARM\Packs\ARM\CMSIS\5.9.0\CMSIS\Core\Include -IC:\Keil_v5\ARM\Packs\MindMoti
-on\MM32SPIN0x_DFP\1.0.8\Device\MM32SPIN06xx_s\Include --predefine="__MICROLIB S
-ETA 1" --predefine="__UVISION_VERSION SETA 538" --predefine="_RTE_ SETA 1" --pr
-edefine="MM32SPIN05TW SETA 1" --predefine="_RTE_ SETA 1" --list=.\listings\star
-t.lst src\start.s
+ork --depend=.\objects\start.d -o.\objects\start.o -I.\RTE\_Target_1 -ID:\Keil_
+v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include -ID:\Keil_v5\ARM\PACK\MindMotion
+\MM32SPIN0x_DFP\1.0.8\Device\MM32SPIN06xx_s\Include --predefine="__MICROLIB SET
+A 1" --predefine="__UVISION_VERSION SETA 538" --predefine="_RTE_ SETA 1" --pred
+efine="MM32SPIN05TW SETA 1" --predefine="_RTE_ SETA 1" --list=.\listings\start.
+lst src\start.s
 
 
 

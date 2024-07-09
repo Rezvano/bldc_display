@@ -2,6 +2,7 @@
     "files.associations": {
         "mm32_device.h": "c",
         "mm32_reg.h": "c",
-        "reg_common.h": "c"
+        "reg_common.h": "c",
+        "math.h": "c"
     }
 }
