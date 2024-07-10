@@ -7,7 +7,7 @@
                 "C:\\Keil_v5\\ARM\\Packs\\MindMotion\\MM32SPIN0x_DFP\\1.0.8\\Device\\CMSIS\\KEIL_Core",
                 "D:\\Keil_v5\\ARM\\PACK\\MindMotion\\MM32SPIN0x_DFP\\1.0.8\\Device\\CMSIS\\KEIL_Core",
                 "D:\\Keil_v5\\ARM\\PACK\\MindMotion\\MM32SPIN0x_DFP\\1.0.8\\Device\\MM32SPIN06xx_s\\Include",
-                "d:\\src\\bldc_display\\src"
+                "c:\\src\\bldc_display\\src"
             ],
             "defines": [
                 "__CC_ARM",

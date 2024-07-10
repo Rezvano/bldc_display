@@ -171,30 +171,6 @@ void tx_task()
 	}
 }
 
-void rx_task()
-{
-	uint8_t *read_data = (void *)&in_data_current;
-
-	if (UART2->CSR & UART_CSR_RXAVL)
-	{
-		uint8_t byte = UART2->RDR;
-		if (byte == IN_START)
-			in_data_readed = 0;
-
-		read_data[in_data_readed++] = byte;
-
-		if (in_data_readed == sizeof(in_data_t))
-		{
-			if (byte == IN_STOP)
-			{
-				memcpy(&in_data, &in_data_current, sizeof(in_data_t));
-				no_data_timeout = millis + 2000;
-			}
-			in_data_readed = 0;
-		}
-	}
-}
-
 void display_task()
 {
 	static uint32_t delay_ms = 0;
@@ -202,7 +178,7 @@ void display_task()
 	static uint8_t data[6];
 	if (delay_ms < millis)
 	{
-		delay_ms = millis + 200;
+		delay_ms = millis + 100;
 		if (no_data_timeout > millis)
 		{
 			if (in_data.start == IN_START && in_data.stop == IN_STOP)
@@ -288,6 +264,66 @@ void adc_task()
 	}
 }
 
+struct
+{
+	uint8_t buffer[128];
+	int write;
+	int read;
+	int size;
+} in_fifo;
+
+void UART2_IRQHandler()
+{
+	UART2->ICR |= UART_ICR_RXICLR;
+	if (UART2->ISR & (UART_ISR_RXFERR | UART_ISR_RXBRK))
+	{
+		UART2->ICR |= UART_ICR_RXFERR | UART_ICR_RXBRK;
+		//return;
+	}
+	uint8_t byte = UART2->RDR;
+	if (in_fifo.size < sizeof(in_fifo.buffer))
+	{
+		in_fifo.buffer[(in_fifo.write++) % sizeof(in_fifo.buffer)] = byte;
+		in_fifo.size++;
+		in_fifo.size %= sizeof(in_fifo.buffer);
+	}
+}
+
+void rx_task()
+{
+	if (in_fifo.size > 0)
+	{
+		uint8_t *read_data = (void *)&in_data_current;
+
+		uint8_t byte = in_fifo.buffer[(in_fifo.read++) % sizeof(in_fifo.buffer)];
+    in_fifo.size--;
+		if (byte == IN_START)
+		{
+			in_data_readed = 0;
+		}
+		read_data[in_data_readed] = 0;
+		read_data[in_data_readed++] = byte;
+
+		if (in_data_readed == sizeof(in_data_t))
+		{
+			if (byte == IN_STOP)
+			{
+				memcpy(&in_data, &in_data_current, sizeof(in_data_t));
+				no_data_timeout = millis + 500;
+			}
+			in_data_readed = 0;
+		}
+	}
+}
+
+void start_delay()
+{
+	int end_ms = millis + 1000;
+	while(millis < end_ms)
+	{
+	}
+}
+
 int main()
 {
 
@@ -319,16 +355,18 @@ int main()
 
 	UART2->GCR = UART_GCR_TX | UART_GCR_RX | UART_GCR_UART;
 	UART2->CCR = UART_CCR_CHAR_8b;
-	UART2->BRR = 19;
+	UART2->BRR = 20;
 
-	// UART2->IER |= UART_IER_RX;
+	UART2->IER |= UART_IER_RX;
 
-	// NVIC_SetPriority(UART2_IRQn, 1);
-	// NVIC_EnableIRQ(UART2_IRQn);
+	NVIC_SetPriority(UART2_IRQn, 1);
+	NVIC_EnableIRQ(UART2_IRQn);
 
 	out_data_current.start = OUT_START;
 	out_data_current.stop = OUT_STOP;
-
+	
+	
+	start_delay();
 	for (;;)
 	{
 		display_task();
