@@ -269,7 +269,6 @@ struct
 	uint8_t buffer[128];
 	int write;
 	int read;
-	int size;
 } in_fifo;
 
 void UART2_IRQHandler()
@@ -281,22 +280,16 @@ void UART2_IRQHandler()
 		//return;
 	}
 	uint8_t byte = UART2->RDR;
-	if (in_fifo.size < sizeof(in_fifo.buffer))
-	{
-		in_fifo.buffer[(in_fifo.write++) % sizeof(in_fifo.buffer)] = byte;
-		in_fifo.size++;
-		in_fifo.size %= sizeof(in_fifo.buffer);
-	}
+	in_fifo.buffer[(in_fifo.write++) % sizeof(in_fifo.buffer)] = byte;
 }
 
 void rx_task()
 {
-	if (in_fifo.size > 0)
+	if (in_fifo.read < in_fifo.write)
 	{
 		uint8_t *read_data = (void *)&in_data_current;
 
 		uint8_t byte = in_fifo.buffer[(in_fifo.read++) % sizeof(in_fifo.buffer)];
-    in_fifo.size--;
 		if (byte == IN_START)
 		{
 			in_data_readed = 0;
@@ -318,7 +311,7 @@ void rx_task()
 
 void start_delay()
 {
-	int end_ms = millis + 1000;
+	int end_ms = millis + 500;
 	while(millis < end_ms)
 	{
 	}
